@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floor Checker</title>
+<meta name="description" content="Does your world model beat copying the last frame? Check the persistence floor and the lift of a latent world model, in your browser.">
+<style>
+:root {
+  --bg: #fbfaf7; --panel: #ffffff; --ink: #1d1d1f; --muted: #5f6368; --line: #e3e1db;
+  --good: #1f7a4d; --bad: #b3261e; --accent: #2457c5; --floor: #c77700; --soft: #f1efe9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131416; --panel: #1c1d20; --ink: #ececec; --muted: #a3a6ab; --line: #2e3035;
+    --good: #4cc38a; --bad: #f2786d; --accent: #7aa2ff; --floor: #f0a640; --soft: #24262a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131416; --panel: #1c1d20; --ink: #ececec; --muted: #a3a6ab; --line: #2e3035;
+  --good: #4cc38a; --bad: #f2786d; --accent: #7aa2ff; --floor: #f0a640; --soft: #24262a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+h2 { font-size: 1.25rem; margin: 0 0 6px; }
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 1.05rem; max-width: 62ch; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 20px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.88rem; }
+button, select, input[type=file] { font: inherit; }
+button { border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: var(--soft); margin: 12px 0; }
+.big { font-size: 2.2rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; font-size: 0.78rem; border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; color: var(--muted); }
+.good { color: var(--good); } .bad { color: var(--bad); }
+.bar { position: relative; height: 34px; margin: 18px 0 8px; }
+.bar .track { position: absolute; top: 14px; left: 0; right: 0; height: 6px; border-radius: 3px; background: var(--line); }
+.bar .seg { position: absolute; top: 14px; height: 6px; border-radius: 3px; background: var(--good); }
+.bar .mark { position: absolute; top: 4px; width: 2px; height: 26px; transform: translateX(-1px); }
+.bar .lbl { position: absolute; top: -12px; transform: translateX(-50%); font-size: 0.75rem; white-space: nowrap; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid2 > * { min-width: 0; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } h1 { font-size: 1.55rem; } }
+label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 4px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+pre { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 0.82rem; margin: 8px 0 12px; }
+code { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; }
+svg text { fill: var(--muted); font-size: 11px; }
+footer { margin-top: 28px; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Does your world model beat copying the last frame?</h1>
+  <p class="lede">A latent world model predicts the next frame's embedding. Its score, the share of the
+  target's variation it explains (1 is perfect), looks high. But copying the last frame's embedding
+  scores high too, often above 0.9. The question is not how high the score is, but how far above copying.</p>
+
+  <section id="game">
+    <h2>Guess, then check</h2>
+    <p class="muted small">A released world model, an environment, and its score. Does it beat copying?</p>
+    <div class="card" id="g-card"></div>
+    <div class="row" id="g-buttons">
+      <button data-guess="1">Beats copying</button>
+      <button data-guess="0">Worse than copying</button>
+    </div>
+    <div id="g-reveal" hidden>
+      <div class="bar" id="g-bar"></div>
+      <p id="g-verdict"></p>
+      <div class="row"><button id="g-next" class="primary">Next model</button><span class="muted small" id="g-tally"></span></div>
+    </div>
+  </section>
+
+  <section id="slider">
+    <h2>Why copying scores so high</h2>
+    <p class="muted small">Let ρ be how alike two consecutive frames' embeddings are (their correlation).
+    Copying the last frame then scores <b>2ρ − 1</b>: the floor. Lift is where a model sits between that
+    floor and a perfect score: <b>lift = (score − floor) / (1 − floor)</b>. Lift 0 is no better than copying, 1 is perfect.</p>
+    <div class="grid2">
+      <div>
+        <label for="rho">Frame-to-frame correlation ρ: <b id="rho-v"></b></label>
+        <input type="range" id="rho" min="0.5" max="0.999" step="0.001" value="0.98">
+        <label for="val" style="margin-top:12px">Your model's score: <b id="val-v"></b></label>
+        <input type="range" id="val" min="0" max="0.999" step="0.001" value="0.95">
+        <p style="margin-top:14px">Floor <b id="fl-v" style="color:var(--floor)"></b> · lift <b id="li-v"></b></p>
+        <p class="muted small" id="sl-say"></p>
+      </div>
+      <svg id="plot" viewBox="0 0 300 200" role="img" aria-label="Floor 2 rho minus 1 against rho"></svg>
+    </div>
+  </section>
+
+  <section id="byo">
+    <h2>Bring your own</h2>
+    <p class="muted small">Run your model on your own machine, save three arrays of one shape with the
+    feature axis last, and drop them here. Nothing leaves your browser.</p>
+<pre><code>import numpy as np
+# z_pred: your model's prediction of the embedding of the frame it predicts
+# z_next: the encoder's embedding of that frame (the target)
+# z_last: the encoder's embedding of the last frame the model was given
+np.save("pred.npy",   z_pred.astype(np.float32))
+np.save("target.npy", z_next.astype(np.float32))
+np.save("last.npy",   z_last.astype(np.float32))</code></pre>
+    <p class="muted small">The rows are every axis but the last, so the shape sets the read-out:
+    <code>[frames, D]</code> scores each frame's vector, <code>[frames, patches, D]</code> each patch.
+    A model that predicts k frames ahead copies from k frames back. A few thousand frames are enough to load quickly.</p>
+    <div class="grid2">
+      <div><label for="f-pred">Predictions</label><input type="file" id="f-pred" accept=".npy"></div>
+      <div><label for="f-target">Targets</label><input type="file" id="f-target" accept=".npy"></div>
+      <div><label for="f-last">Last frame seen</label><input type="file" id="f-last" accept=".npy"></div>
+      <div class="row" style="align-items:end">
+        <button class="primary" id="b-run">Check</button>
+        <button id="b-copy" title="Score copying itself: the lift must read exactly 0">Score copying</button>
+      </div>
+    </div>
+    <div id="b-out"></div>
+  </section>
+
+  <section id="all">
+    <h2>Every released model we measured</h2>
+    <p class="muted small">One forward pass per row gives the prediction, the copy and the target; the
+    interval is a 95% bootstrap over episodes. Copying, scored as a model, reads lift 0 on every row: the
+    floor is aligned to the frame. The original DINO-WM rows are exploratory: no prediction was sealed before they were measured.</p>
+    <div class="row"><label for="t-model" style="margin:0">Model</label><select id="t-model"></select>
+      <label for="t-arm" style="margin:0 0 0 8px">Weights</label><select id="t-arm"></select></div>
+    <div class="tablewrap"><table id="t-table"></table></div>
+  </section>
+
+  <footer>
+    From <i>Your world model may be worse than copying the last frame</i>, Michael Surazhsky, Yuval Elovici
+    (Cyber@BGU) and Ronen Brafman (Computer Science), Ben-Gurion University of the Negev. NeurIPS 2026
+    Workshop on Robot Learning with World Models.
+  </footer>
+</main>
+<script src="lift.js"></script>
+<script src="data.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const f = (x, d = 2) => Number.isFinite(x) ? (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(d) : "n/a";
+const ROWS = window.FLOORS;
+
+// a bar from the lower of floor and value up to 1, the floor and the value marked
+function bar(el, value, floor) {
+  const lo = Math.min(0, floor, value), x = v => `${((v - lo) / (1 - lo)) * 100}%`;
+  const a = Math.min(floor, value), b = Math.max(floor, value);
+  el.innerHTML = `<div class="track"></div>
+    <div class="seg" style="left:${x(a)};width:calc(${x(b)} - ${x(a)});background:var(--${value > floor ? "good" : "bad"})"></div>
+    <div class="mark" style="left:${x(floor)};background:var(--floor)"></div><div class="lbl" style="left:${x(floor)};color:var(--floor)">copying ${f(floor)}</div>
+    <div class="mark" style="left:${x(value)};background:var(--ink)"></div><div class="lbl" style="left:${x(value)};top:30px">model ${f(value)}</div>
+    <div class="mark" style="left:100%;background:var(--muted)"></div>`;
+  el.style.marginBottom = "28px";
+}
+
+// the game: trained and untrained predictors, never the copier itself
+const deck = ROWS.filter(r => r.arm !== "copying (control)");
+let card, right = 0, played = 0;
+function deal() {
+  card = deck[Math.floor(Math.random() * deck.length)];
+  $("g-card").innerHTML = `<div class="row"><b>${card.model}</b><span class="tag">${card.env}</span>
+    <span class="tag">${card.arm}</span>${card.exploratory ? '<span class="tag">exploratory</span>' : ""}</div>
+    <p class="muted small" style="margin:6px 0 2px">Scored on ${card.readout}, one step ahead</p>
+    <div class="big">${card.value.toFixed(3)}</div><div class="muted small">share of the target's variation explained</div>`;
+  $("g-reveal").hidden = true; $("g-buttons").hidden = false;
+}
+$("g-buttons").addEventListener("click", e => {
+  const g = e.target.dataset.guess; if (g === undefined) return;
+  const beats = card.lift > 0, ok = (g === "1") === beats;
+  played++; right += ok;
+  bar($("g-bar"), card.value, card.floor);
+  $("g-verdict").innerHTML = `<b class="${ok ? "good" : "bad"}">${ok ? "Right." : "Not quite."}</b>
+    Copying the last frame scores <b>${f(card.floor)}</b> here, so the lift is <b class="${beats ? "good" : "bad"}">${f(card.lift)}</b>
+    <span class="muted small">(95% interval ${f(card.ci95_lift[0])} to ${f(card.ci95_lift[1])}, ${card.episodes} episodes)</span>.
+    ${beats ? "" : "It is worse than copying, whatever its score looks like."}`;
+  $("g-tally").textContent = `${right} of ${played} right`;
+  $("g-reveal").hidden = false; $("g-buttons").hidden = true;
+});
+$("g-next").onclick = deal;
+
+// the slider: floor = 2 rho - 1, and the plot of it
+function slide() {
+  const rho = +$("rho").value, v = +$("val").value, fl = 2 * rho - 1, li = Lift.lifted(v, fl);
+  $("rho-v").textContent = rho.toFixed(3); $("val-v").textContent = v.toFixed(3);
+  $("fl-v").textContent = f(fl, 3); $("li-v").textContent = f(li);
+  $("li-v").className = li > 0 ? "good" : "bad";
+  $("sl-say").textContent = li > 0 ? `This model explains ${(li * 100).toFixed(0)}% of what copying leaves unexplained.`
+    : "A score this high is still worse than copying the last frame.";
+  const X = r => 40 + (r - 0.5) / 0.5 * 245, Y = s => 175 - s * 160;
+  $("plot").innerHTML = `
+    <line x1="40" y1="${Y(0)}" x2="285" y2="${Y(0)}" stroke="var(--line)"/><line x1="40" y1="${Y(1)}" x2="285" y2="${Y(1)}" stroke="var(--line)"/>
+    <text x="34" y="${Y(0) + 4}" text-anchor="end">0</text><text x="34" y="${Y(1) + 4}" text-anchor="end">1</text>
+    <text x="40" y="194">ρ 0.5</text><text x="285" y="194" text-anchor="end">1.0</text>
+    <rect x="40" y="${Y(1)}" width="245" height="${Y(0) - Y(1)}" fill="none"/>
+    <line x1="${X(0.5)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="var(--floor)" stroke-width="2"/>
+    <text x="${X(0.7)}" y="${Y(0.2)}" fill="var(--floor)" style="fill:var(--floor)">copying: 2ρ − 1</text>
+    <line x1="40" y1="${Y(v)}" x2="285" y2="${Y(v)}" stroke="var(--ink)" stroke-dasharray="4 3"/>
+    <text x="44" y="${Y(v) - 5}" style="fill:var(--ink)">your model</text>
+    <circle cx="${X(rho)}" cy="${Y(fl)}" r="5" fill="var(--floor)"/>`;
+}
+$("rho").oninput = slide; $("val").oninput = slide;
+
+// bring your own
+const read = id => new Promise((ok, no) => {
+  const file = $(id).files[0]; if (!file) return no(new Error("choose all three files"));
+  file.arrayBuffer().then(b => ok(Lift.parseNpy(b))).catch(no);
+});
+async function run(copy) {
+  const out = $("b-out");
+  try {
+    const [t, l] = await Promise.all([read("f-target"), read("f-last")]);
+    const p = copy ? l : await read("f-pred");
+    const r = Lift.check(p, t, l);
+    out.innerHTML = `<div class="card"><div class="row"><span class="big ${r.lift > 0 ? "good" : "bad"}">lift ${f(r.lift, 3)}</span>
+      ${copy ? '<span class="tag">copying scored as a model</span>' : ""}</div><div class="bar" id="b-bar"></div>
+      <p class="small">Score ${f(r.value, 4)} · floor ${f(r.floor, 4)} · ceiling 1 · ${r.rows.toLocaleString()} rows of ${r.d} numbers</p>
+      ${r.halves ? `<p class="small muted">First half of the rows: lift ${f(r.halves[0], 3)}; second half: ${f(r.halves[1], 3)}.
+        If these differ a lot, use more frames.</p>` : ""}
+      ${copy ? `<p class="small">${r.lift === 0 ? "Exactly 0: your last-frame array is aligned with your targets." : "Not 0: check the arrays."}</p>` : ""}</div>`;
+    bar($("b-bar"), r.value, r.floor);
+  } catch (e) { out.innerHTML = `<p class="bad small">${e.message}</p>`; }
+}
+$("b-run").onclick = () => run(false); $("b-copy").onclick = () => run(true);
+
+// the table
+const uniq = k => [...new Set(ROWS.map(r => r[k]))];
+$("t-model").innerHTML = ["all", ...uniq("model")].map(m => `<option>${m}</option>`).join("");
+$("t-arm").innerHTML = ["all", ...uniq("arm")].map(m => `<option>${m}</option>`).join("");
+function table() {
+  const m = $("t-model").value, a = $("t-arm").value;
+  const rs = ROWS.filter(r => (m === "all" || r.model === m) && (a === "all" || r.arm === a));
+  $("t-table").innerHTML = `<tr><th>Model</th><th>Env</th><th>Weights</th><th>Scored on</th><th class="num">Score</th>
+    <th class="num">Copying</th><th class="num">Lift</th><th class="num">95% interval</th></tr>` + rs.map(r => `<tr>
+    <td>${r.model}${r.exploratory ? "*" : ""}</td><td>${r.env}</td><td>${r.arm}</td><td>${r.readout}</td>
+    <td class="num">${f(r.value, 3)}</td><td class="num">${f(r.floor, 3)}</td>
+    <td class="num ${r.lift > 0 ? "good" : r.lift < 0 ? "bad" : ""}">${f(r.lift)}</td>
+    <td class="num muted">${f(r.ci95_lift[0])} to ${f(r.ci95_lift[1])}</td></tr>`).join("");
+}
+$("t-model").onchange = table; $("t-arm").onchange = table; $("t-arm").value = "trained";
+
+deal(); slide(); table();
+</script>
+</body>
+</html>
